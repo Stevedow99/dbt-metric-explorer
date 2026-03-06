@@ -1,5 +1,5 @@
 {
-  "name": "saddle_creek_app",
+  "name": "dbt-metric-explorer",
   "version": "0.1.0",
   "private": true,
   "scripts": {

@@ -49,7 +49,7 @@ git clone <repo-url>
 Then navigate into the project folder:
 
 ```bash
-cd saddle_creek_app
+cd dbt-metric-explorer
 ```
 
 > **Tip:** You can also drag the folder onto your terminal window on Mac to auto-fill the path, then press Enter.
