@@ -2,6 +2,10 @@
 
 A web application for exploring dbt semantic metrics, visualizing lineage graphs, and querying the dbt Semantic Layer.
 
+![Landing Page](app_screenshots/homepage.png)
+
+![Metric Explorer — Object Lineage](app_screenshots/metric_explorer.png)
+
 ## What Does This App Do?
 
 This app connects to your dbt Cloud account and lets you:
