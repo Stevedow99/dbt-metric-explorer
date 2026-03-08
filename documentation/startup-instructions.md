@@ -38,7 +38,7 @@ The interactive setup wizard handles everything in one command.
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Stevedow99/dbt-metric-explorer.git
 cd dbt-metric-explorer
 ```
 
