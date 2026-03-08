@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #F8FAFC;
   --foreground: #1E293B;
@@ -16,6 +18,26 @@
   --muted: #64748B;
   --dbt-orange: #FF694B;
   --dbt-coral: #e55a3d;
+  --sigma-purple: #1B1464;
+  --sigma-yellow: #F7C948;
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #F1F5F9;
+  --surface: #1E293B;
+  --surface-hover: #334155;
+  --border: #334155;
+  --border-light: #475569;
+  --accent: #FF694B;
+  --accent-hover: #FF8066;
+  --accent-dim: #2D1610;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error: #F87171;
+  --muted: #94A3B8;
+  --dbt-orange: #FF694B;
+  --dbt-coral: #FF8066;
   --sigma-purple: #1B1464;
   --sigma-yellow: #F7C948;
 }
@@ -53,9 +75,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-.react-flow__controls-button { background: #FFFFFF !important; border-color: #E2E8F0 !important; color: #64748B !important; }
-.react-flow__controls-button:hover { background: #F1F5F9 !important; }
-.react-flow__controls-button svg { fill: #64748B !important; }
+.react-flow__controls-button { background: var(--surface) !important; border-color: var(--border) !important; color: var(--muted) !important; }
+.react-flow__controls-button:hover { background: var(--surface-hover) !important; }
+.react-flow__controls-button svg { fill: var(--muted) !important; }
 
 .react-flow__node { font-family: "Inter", system-ui, -apple-system, sans-serif; }
 .react-flow__attribution { display: none !important; }
+.react-flow__pane { background: var(--background) !important; }

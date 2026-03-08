@@ -146,6 +146,57 @@ export interface MetricLineageResponse {
   columnLineage: ColumnLineageData;
 }
 
+// ─── Asset Explorer Types ────────────────────────────────────────────────────
+
+export interface AssetSummary {
+  uniqueId: string;
+  name: string;
+  type: "model" | "source" | "exposure";
+  description?: string;
+  materializedType?: string;
+  database?: string;
+  schema?: string;
+  alias?: string;
+  sourceName?: string;
+  exposureType?: string;
+  url?: string;
+  label?: string;
+  tags?: string[];
+}
+
+export interface AssetColumnTrace {
+  columnName: string;
+  columnType: string | null;
+  upstreamColumns: {
+    column: string;
+    model: string;
+    modelId: string;
+    database: string | null;
+    schema: string | null;
+  }[];
+  sourceColumns: {
+    column: string;
+    sourceName: string;
+    database: string | null;
+    schema: string | null;
+  }[];
+}
+
+export interface AssetColumnLineageData {
+  columns: AssetColumnTrace[];
+  modelName: string;
+  modelId: string;
+  modelDatabase: string | null;
+  modelSchema: string | null;
+}
+
+export interface AssetLineageResponse {
+  nodes: LineageNode[];
+  edges: LineageEdge[];
+  asset: LineageNode;
+  columnLineage: AssetColumnLineageData | null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function getDisplayName(node: LineageNode, mode: NamingMode): string {

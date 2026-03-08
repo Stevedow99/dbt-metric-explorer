@@ -290,6 +290,538 @@ export async function fetchAllExposures(): Promise<ExposureNode[]> {
   );
 }
 
+// ─── Asset Explorer API ──────────────────────────────────────────────────────
+
+export async function fetchAllAssets() {
+  const query = `
+    query ($environmentId: BigInt!, $first: Int!) {
+      environment(id: $environmentId) {
+        applied {
+          models(first: $first) {
+            edges {
+              node {
+                uniqueId
+                name
+                description
+                materializedType
+                database
+                schema
+                alias
+                tags
+              }
+            }
+          }
+          sources(first: $first) {
+            edges {
+              node {
+                uniqueId
+                sourceName
+                name
+                description
+                database
+                schema
+              }
+            }
+          }
+          exposures(first: $first) {
+            edges {
+              node {
+                uniqueId
+                name
+                description
+                exposureType
+                url
+                label
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await gqlRequest(DISCOVERY_API_URL, query, {
+    environmentId: parseInt(ENVIRONMENT_ID),
+    first: 500,
+  });
+
+  const models = data.environment.applied.models.edges.map(
+    (e: { node: Record<string, unknown> }) => ({
+      ...e.node,
+      type: "model",
+    })
+  );
+
+  const sources = data.environment.applied.sources.edges.map(
+    (e: { node: Record<string, unknown> }) => ({
+      ...e.node,
+      type: "source",
+    })
+  );
+
+  const exposures = data.environment.applied.exposures.edges.map(
+    (e: { node: Record<string, unknown> }) => ({
+      ...e.node,
+      type: "exposure",
+    })
+  );
+
+  return { models, sources, exposures };
+}
+
+export async function fetchAllModelParents(): Promise<
+  { uniqueId: string; name: string; parents: { uniqueId: string; name: string; resourceType: string }[] }[]
+> {
+  const query = `
+    query ($environmentId: BigInt!, $first: Int!) {
+      environment(id: $environmentId) {
+        applied {
+          models(first: $first) {
+            edges {
+              node {
+                uniqueId
+                name
+                parents {
+                  uniqueId
+                  name
+                  resourceType
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await gqlRequest(DISCOVERY_API_URL, query, {
+    environmentId: parseInt(ENVIRONMENT_ID),
+    first: 500,
+  });
+
+  return data.environment.applied.models.edges.map(
+    (e: { node: { uniqueId: string; name: string; parents: { uniqueId: string; name: string; resourceType: string }[] } }) => e.node
+  );
+}
+
+export async function buildAssetLineage(
+  uniqueId: string
+): Promise<{
+  nodes: LineageNode[];
+  edges: LineageEdge[];
+  asset: LineageNode;
+  columnLineage: {
+    columns: {
+      columnName: string;
+      columnType: string | null;
+      upstreamColumns: { column: string; model: string; modelId: string; database: string | null; schema: string | null }[];
+      sourceColumns: { column: string; sourceName: string; database: string | null; schema: string | null }[];
+    }[];
+    modelName: string;
+    modelId: string;
+    modelDatabase: string | null;
+    modelSchema: string | null;
+  } | null;
+}> {
+  const isSource = uniqueId.startsWith("source.");
+  const isModel = uniqueId.startsWith("model.");
+
+  const [allModelParents, allSemanticModels, allMetrics, allExposures] = await Promise.all([
+    fetchAllModelParents(),
+    fetchSemanticModels(),
+    fetchAllMetrics(),
+    fetchAllExposures().catch(() => [] as ExposureNode[]),
+  ]);
+
+  const nodes: LineageNode[] = [];
+  const edges: LineageEdge[] = [];
+  const visitedIds = new Set<string>();
+
+  function addNode(node: LineageNode) {
+    if (visitedIds.has(node.id)) return;
+    visitedIds.add(node.id);
+    nodes.push(node);
+  }
+
+  function addEdge(source: string, target: string) {
+    const exists = edges.some((e) => e.source === source && e.target === target);
+    if (!exists) edges.push({ source, target });
+  }
+
+  // Build parent→children adjacency map for downstream traversal
+  const childrenMap = new Map<string, string[]>();
+  for (const m of allModelParents) {
+    for (const p of m.parents) {
+      const children = childrenMap.get(p.uniqueId) ?? [];
+      children.push(m.uniqueId);
+      childrenMap.set(p.uniqueId, children);
+    }
+  }
+
+  // === UPSTREAM: Fetch the target + its ancestors ===
+  let targetModelIds: string[] = [];
+
+  if (isModel) {
+    targetModelIds = [uniqueId];
+  } else if (isSource) {
+    // Find models that directly depend on this source
+    const directChildren = childrenMap.get(uniqueId) ?? [];
+    targetModelIds = directChildren.filter((id) => id.startsWith("model."));
+  }
+
+  // Fetch full details for the target model(s) with ancestors
+  const fetchedModels = await fetchModelLineage(targetModelIds);
+  const sourceIds: string[] = [];
+
+  for (const model of fetchedModels) {
+    addNode({
+      id: model.uniqueId,
+      name: model.name,
+      type: "model",
+      description: model.description,
+      materializedType: model.materializedType,
+      database: model.database,
+      schema: model.schema,
+      alias: model.alias,
+      executionInfo: model.executionInfo,
+      rawCode: model.rawCode,
+    });
+
+    // Process ancestors (upstream chain)
+    if (model.ancestors) {
+      for (const ancestor of model.ancestors) {
+        const isAncSource =
+          ancestor.resourceType === "SourceAppliedStateNestedNode" ||
+          ancestor.uniqueId.startsWith("source.");
+
+        if (isAncSource) {
+          sourceIds.push(ancestor.uniqueId);
+          const srcAnc = ancestor as Extract<AncestorNode, { resourceType: "SourceAppliedStateNestedNode" }>;
+          addNode({
+            id: ancestor.uniqueId,
+            name: ancestor.name,
+            type: "source",
+            sourceName: srcAnc.sourceName,
+            freshness: srcAnc.freshness,
+          });
+        } else {
+          addNode({
+            id: ancestor.uniqueId,
+            name: ancestor.name,
+            type: "model",
+            materializedType: (ancestor as { materializedType?: string }).materializedType,
+            executionInfo: (ancestor as { executionInfo?: { executeCompletedAt: string | null; lastRunStatus: string | null; executionTime: number | null } }).executionInfo,
+          });
+        }
+        addEdge(ancestor.uniqueId, model.uniqueId);
+      }
+    }
+
+    // Add source parents not covered by ancestors
+    if (model.parents) {
+      for (const parent of model.parents) {
+        if (parent.uniqueId.startsWith("source.") && !visitedIds.has(parent.uniqueId)) {
+          sourceIds.push(parent.uniqueId);
+          addNode({
+            id: parent.uniqueId,
+            name: parent.name,
+            type: "source",
+          });
+        }
+        addEdge(parent.uniqueId, model.uniqueId);
+      }
+    }
+  }
+
+  // If the target is a source, add it as a node too
+  if (isSource && !visitedIds.has(uniqueId)) {
+    sourceIds.push(uniqueId);
+    const sourceName = uniqueId.split(".").pop() ?? uniqueId;
+    addNode({
+      id: uniqueId,
+      name: sourceName,
+      type: "source",
+    });
+    // Connect source → its child models
+    for (const childId of targetModelIds) {
+      addEdge(uniqueId, childId);
+    }
+  }
+
+  // Enrich source nodes with details
+  if (sourceIds.length > 0) {
+    try {
+      const sources = await fetchSourceDetails([...new Set(sourceIds)]);
+      for (const src of sources) {
+        const existing = nodes.find((n) => n.id === src.uniqueId);
+        if (existing) {
+          existing.description = src.description;
+          existing.database = src.database;
+          existing.schema = src.schema;
+          existing.identifier = src.identifier;
+          existing.sourceName = src.sourceName;
+          existing.freshness = src.freshness;
+        }
+      }
+    } catch {
+      // supplementary
+    }
+  }
+
+  // === DOWNSTREAM: BFS from the target to find child models ===
+  const downstreamQueue = isSource ? [...targetModelIds, uniqueId] : [uniqueId];
+  const downstreamVisited = new Set(downstreamQueue);
+
+  while (downstreamQueue.length > 0) {
+    const currentId = downstreamQueue.shift()!;
+    const children = childrenMap.get(currentId) ?? [];
+
+    for (const childId of children) {
+      if (downstreamVisited.has(childId)) continue;
+      downstreamVisited.add(childId);
+      downstreamQueue.push(childId);
+
+      const childModel = allModelParents.find((m) => m.uniqueId === childId);
+      if (childModel && !visitedIds.has(childId)) {
+        addNode({
+          id: childId,
+          name: childModel.name,
+          type: "model",
+        });
+      }
+      addEdge(currentId, childId);
+    }
+  }
+
+  // Fetch details for downstream models we just discovered
+  const downstreamModelIds = [...downstreamVisited].filter(
+    (id) => id.startsWith("model.") && id !== uniqueId && !fetchedModels.some((m) => m.uniqueId === id)
+  );
+  if (downstreamModelIds.length > 0) {
+    try {
+      const downModels = await fetchModelLineage(downstreamModelIds);
+      for (const dm of downModels) {
+        const existing = nodes.find((n) => n.id === dm.uniqueId);
+        if (existing) {
+          existing.description = dm.description;
+          existing.materializedType = dm.materializedType;
+          existing.database = dm.database;
+          existing.schema = dm.schema;
+          existing.alias = dm.alias;
+          existing.executionInfo = dm.executionInfo;
+          existing.rawCode = dm.rawCode;
+        }
+      }
+    } catch {
+      // supplementary
+    }
+  }
+
+  // === DOWNSTREAM: Semantic models that reference any model in our graph ===
+  const allGraphModelIds = new Set(nodes.filter((n) => n.type === "model").map((n) => n.id));
+  const smMap = new Map<string, SemanticModelDef>();
+
+  for (const sm of allSemanticModels) {
+    const referencesGraphModel = sm.parents.some((p) => allGraphModelIds.has(p.uniqueId));
+    if (referencesGraphModel) {
+      smMap.set(sm.uniqueId, sm);
+      addNode({
+        id: sm.uniqueId,
+        name: sm.name,
+        type: "semantic_model",
+        description: sm.description,
+      });
+      for (const p of sm.parents) {
+        if (allGraphModelIds.has(p.uniqueId)) {
+          addEdge(p.uniqueId, sm.uniqueId);
+        }
+      }
+    }
+  }
+
+  // === DOWNSTREAM: Metrics that reference semantic models in the graph ===
+  const smIds = new Set(smMap.keys());
+  const metricsMap = new Map<string, MetricDefinition>();
+
+  for (const m of allMetrics) {
+    const referencesSM = m.parents.some(
+      (p) => p.uniqueId.startsWith("semantic_model.") && smIds.has(p.uniqueId)
+    );
+    const referencesModel = m.parents.some(
+      (p) => p.uniqueId.startsWith("model.") && allGraphModelIds.has(p.uniqueId)
+    );
+    if (referencesSM || referencesModel) {
+      const mId = `metric.${m.name}`;
+      metricsMap.set(m.name, m);
+      addNode({
+        id: mId,
+        name: m.name,
+        type: "metric",
+        description: m.description,
+        meta: m.meta,
+      });
+      for (const p of m.parents) {
+        if (p.uniqueId.startsWith("semantic_model.") && smIds.has(p.uniqueId)) {
+          addEdge(p.uniqueId, mId);
+        } else if (p.uniqueId.startsWith("model.") && allGraphModelIds.has(p.uniqueId)) {
+          addEdge(p.uniqueId, mId);
+        }
+      }
+    }
+  }
+
+  // Add derived metrics that reference metrics already in the graph
+  const metricNodeIds = new Set(nodes.filter((n) => n.type === "metric").map((n) => n.id));
+  for (const m of allMetrics) {
+    const mId = `metric.${m.name}`;
+    if (metricNodeIds.has(mId)) continue;
+    const referencesGraphMetric = m.parents.some(
+      (p) => p.uniqueId.startsWith("metric.") && metricNodeIds.has(`metric.${p.name}`)
+    );
+    if (referencesGraphMetric) {
+      metricsMap.set(m.name, m);
+      addNode({
+        id: mId,
+        name: m.name,
+        type: "metric",
+        description: m.description,
+        meta: m.meta,
+      });
+      for (const p of m.parents) {
+        if (p.uniqueId.startsWith("metric.")) {
+          const parentId = `metric.${p.name}`;
+          if (metricNodeIds.has(parentId) || visitedIds.has(parentId)) {
+            addEdge(parentId, mId);
+          }
+        }
+      }
+      metricNodeIds.add(mId);
+    }
+  }
+
+  // === DOWNSTREAM: Exposures ===
+  const allNodeIds = new Set(nodes.map((n) => n.id));
+
+  for (const exposure of allExposures) {
+    const matchingParents = exposure.parents.filter((p) => allNodeIds.has(p.uniqueId));
+    if (matchingParents.length > 0) {
+      addNode({
+        id: exposure.uniqueId,
+        name: exposure.label || exposure.name,
+        type: "exposure",
+        description: exposure.description,
+        url: exposure.url,
+        ownerName: exposure.ownerName,
+        exposureType: exposure.exposureType,
+        label: exposure.label,
+      });
+      for (const mp of matchingParents) {
+        addEdge(mp.uniqueId, exposure.uniqueId);
+      }
+    }
+  }
+
+  // Identify the target asset node
+  let asset = nodes.find((n) => n.id === uniqueId);
+  if (!asset) {
+    asset = { id: uniqueId, name: uniqueId.split(".").pop() ?? uniqueId, type: isSource ? "source" : "model" };
+    addNode(asset);
+  }
+
+  // === COLUMN LINEAGE (for models only) ===
+  let columnLineage = null;
+
+  if (isModel && fetchedModels.length > 0) {
+    const targetModel = fetchedModels.find((m) => m.uniqueId === uniqueId);
+    if (targetModel?.catalog?.columns) {
+      const catalogColumns = targetModel.catalog.columns;
+      const columnRenames = parseColumnRenames(targetModel.rawCode ?? "");
+
+      // Find source ancestors for this model
+      const sourceAncs: { uniqueId: string; name: string; sourceName?: string }[] = [];
+      for (const a of targetModel.ancestors || []) {
+        if (a.resourceType === "SourceAppliedStateNestedNode") {
+          sourceAncs.push({ uniqueId: a.uniqueId, name: a.name, sourceName: (a as Extract<AncestorNode, { resourceType: "SourceAppliedStateNestedNode" }>).sourceName });
+        }
+      }
+      if (sourceAncs.length === 0) {
+        for (const p of targetModel.parents || []) {
+          if (p.uniqueId.startsWith("source.")) {
+            sourceAncs.push({ uniqueId: p.uniqueId, name: p.name });
+          }
+        }
+      }
+
+      // Find upstream model ancestors
+      const upstreamModelAncs: { uniqueId: string; name: string; database?: string; schema?: string }[] = [];
+      for (const a of targetModel.ancestors || []) {
+        if (a.resourceType === "ModelAppliedStateNestedNode" || a.uniqueId.startsWith("model.")) {
+          const enriched = nodes.find((n) => n.id === a.uniqueId);
+          upstreamModelAncs.push({
+            uniqueId: a.uniqueId,
+            name: a.name,
+            database: enriched?.database,
+            schema: enriched?.schema,
+          });
+        }
+      }
+
+      const sourceDetails = new Map<string, { database?: string; schema?: string }>();
+      for (const n of nodes) {
+        if (n.type === "source" && n.database && n.schema) {
+          sourceDetails.set(n.id, { database: n.database, schema: n.schema });
+        }
+      }
+
+      const columns: {
+        columnName: string;
+        columnType: string | null;
+        upstreamColumns: { column: string; model: string; modelId: string; database: string | null; schema: string | null }[];
+        sourceColumns: { column: string; sourceName: string; database: string | null; schema: string | null }[];
+      }[] = [];
+
+      for (const col of catalogColumns) {
+        const sourceCol = columnRenames.get(col.name.toLowerCase()) ?? col.name.toLowerCase();
+
+        const upstreamColumns = upstreamModelAncs.map((um) => ({
+          column: sourceCol,
+          model: um.name,
+          modelId: um.uniqueId,
+          database: um.database ?? null,
+          schema: um.schema ?? null,
+        }));
+
+        const sourceColumns = sourceAncs.map((sa) => {
+          const sd = sourceDetails.get(sa.uniqueId);
+          return {
+            column: sourceCol,
+            sourceName: sa.sourceName ?? sa.name,
+            database: sd?.database ?? null,
+            schema: sd?.schema ?? null,
+          };
+        });
+
+        columns.push({
+          columnName: col.name,
+          columnType: col.type ?? null,
+          upstreamColumns,
+          sourceColumns,
+        });
+      }
+
+      columnLineage = {
+        columns,
+        modelName: targetModel.name,
+        modelId: targetModel.uniqueId,
+        modelDatabase: targetModel.database ?? null,
+        modelSchema: targetModel.schema ?? null,
+      };
+    }
+  }
+
+  return { nodes, edges, asset, columnLineage };
+}
+
 // ─── Semantic Layer API ──────────────────────────────────────────────────────
 
 export async function fetchSemanticLayerMetrics() {
@@ -361,6 +893,76 @@ export async function fetchMetricDimensions(metricName: string) {
   return data.dimensionsPaginated;
 }
 
+// ─── Semantic Layer Compile SQL ──────────────────────────────────────────────
+
+export async function compileSemanticLayerQuery(
+  metricNames: string[],
+  groupBy: { name: string; grain?: string }[],
+  limit: number = 10
+): Promise<string> {
+  const createMutation = `
+    mutation ($environmentId: BigInt!, $metrics: [MetricInput!]!, $groupBy: [GroupByInput!], $limit: Int) {
+      createQuery(
+        environmentId: $environmentId
+        metrics: $metrics
+        groupBy: $groupBy
+        limit: $limit
+        readCache: false
+      ) {
+        queryId
+      }
+    }
+  `;
+
+  const metricsInput = metricNames.map((name) => ({ name }));
+  const groupByInput = groupBy.map((g) => {
+    const input: Record<string, unknown> = { name: g.name };
+    if (g.grain) input.grain = g.grain;
+    return input;
+  });
+
+  const createData = await gqlRequest(SEMANTIC_LAYER_API_URL, createMutation, {
+    environmentId: parseInt(ENVIRONMENT_ID),
+    metrics: metricsInput,
+    groupBy: groupByInput,
+    limit,
+  });
+
+  const queryId = createData.createQuery.queryId;
+
+  const pollQuery = `
+    query ($environmentId: BigInt!, $queryId: String!) {
+      query(environmentId: $environmentId, queryId: $queryId) {
+        status
+        sql
+        error
+      }
+    }
+  `;
+
+  const maxAttempts = 30;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((resolve) => setTimeout(resolve, i < 3 ? 500 : 1000));
+
+    const pollData = await gqlRequest(SEMANTIC_LAYER_API_URL, pollQuery, {
+      environmentId: parseInt(ENVIRONMENT_ID),
+      queryId,
+    });
+
+    const result = pollData.query;
+
+    if (result.status === "FAILED") {
+      throw new Error(result.error ?? "Semantic Layer query compilation failed");
+    }
+
+    if (result.status === "SUCCESSFUL" || result.sql) {
+      return result.sql ?? "";
+    }
+  }
+
+  throw new Error("Timed out waiting for compiled SQL");
+}
+
 // ─── Semantic Layer Query Execution ──────────────────────────────────────────
 
 export async function executeSemanticLayerQuery(
@@ -404,6 +1006,7 @@ export async function executeSemanticLayerQuery(
         status
         sql
         jsonResult
+        arrowResult
         error
       }
     }
@@ -429,19 +1032,81 @@ export async function executeSemanticLayerQuery(
       let columns: { name: string; type: string }[] = [];
       let rows: Record<string, unknown>[] = [];
 
-      if (result.jsonResult) {
+      const jsonStr = result.jsonResult ?? result.arrowResult;
+      if (jsonStr) {
         try {
-          const parsed = JSON.parse(result.jsonResult);
-          if (parsed.schema?.fields) {
-            columns = parsed.schema.fields.map((f: { name: string; type?: unknown }) => ({
-              name: f.name,
-              type: typeof f.type === "object" && f.type !== null ? (f.type as Record<string, string>).name ?? "unknown" : String(f.type ?? "unknown"),
-            }));
+          let parsed: unknown;
+          if (typeof jsonStr === "string") {
+            // Might be base64-encoded JSON (arrowResult) or plain JSON string
+            try {
+              parsed = JSON.parse(jsonStr);
+            } catch {
+              // Try base64 decode
+              const decoded = Buffer.from(jsonStr, "base64").toString("utf-8");
+              parsed = JSON.parse(decoded);
+            }
+          } else {
+            parsed = jsonStr;
           }
-          if (Array.isArray(parsed.data)) {
-            rows = parsed.data;
+
+          if (Array.isArray(parsed)) {
+            // Direct array of row objects
+            rows = parsed as Record<string, unknown>[];
+          } else if (parsed && typeof parsed === "object") {
+            const obj = parsed as Record<string, unknown>;
+
+            // Extract schema fields
+            if (obj.schema && typeof obj.schema === "object") {
+              const schema = obj.schema as Record<string, unknown>;
+              const fields = schema.fields;
+              if (Array.isArray(fields)) {
+                columns = fields.map((f: unknown) => {
+                  const field = f as Record<string, unknown>;
+                  const name = String(field.name ?? "");
+                  let type = "unknown";
+                  if (typeof field.type === "string") type = field.type;
+                  else if (field.type && typeof field.type === "object") {
+                    const t = field.type as Record<string, unknown>;
+                    type = String(t.name ?? t.type ?? "unknown");
+                  }
+                  return { name, type };
+                });
+              }
+            }
+
+            // Extract rows from various possible keys
+            const rowData = obj.data ?? obj.rows ?? obj.results;
+            if (Array.isArray(rowData)) {
+              // Check if data is column-oriented (each key maps to an array)
+              if (rowData.length > 0 && typeof rowData[0] === "object" && !Array.isArray(rowData[0])) {
+                rows = rowData as Record<string, unknown>[];
+              }
+            } else if (rowData && typeof rowData === "object") {
+              // Column-oriented format: { "col1": [v1, v2], "col2": [v1, v2] }
+              const colData = rowData as Record<string, unknown[]>;
+              const keys = Object.keys(colData);
+              if (keys.length > 0 && Array.isArray(colData[keys[0]])) {
+                const len = (colData[keys[0]] as unknown[]).length;
+                for (let r = 0; r < len; r++) {
+                  const row: Record<string, unknown> = {};
+                  for (const k of keys) row[k] = (colData[k] as unknown[])[r];
+                  rows.push(row);
+                }
+              }
+            }
           }
-        } catch {
+
+          // Infer columns from first row if we have rows but no schema
+          if (columns.length === 0 && rows.length > 0) {
+            columns = Object.keys(rows[0]).map((k) => ({ name: k, type: "unknown" }));
+          }
+        } catch (e) {
+          console.error("Query result parse error:", e);
+          console.error("Raw jsonResult type:", typeof result.jsonResult, "length:", result.jsonResult?.length);
+          console.error("Raw arrowResult type:", typeof result.arrowResult, "length:", result.arrowResult?.length);
+          if (typeof jsonStr === "string") {
+            console.error("First 500 chars:", jsonStr.substring(0, 500));
+          }
           throw new Error("Failed to parse query results");
         }
       }
@@ -1075,47 +1740,48 @@ function buildColumnLineage(
       const sourceAnc = catalogEntry?.sourceAncestors?.[0];
       const srcDetails = sourceAnc ? sourceDetailsMap.get(sourceAnc.uniqueId) : undefined;
 
+      const modelColumnNames = catalogColumns.map((c) => c.name);
+
       for (const meas of measuresToInclude) {
-        // Find which model columns the measure expr references
-        const modelColumnNames = catalogColumns.map((c) => c.name);
         const referencedModelCols = extractReferencedColumns(meas.expr, modelColumnNames);
 
         const traceColumns: ColumnLineageData["traces"][0]["columns"] = [];
+        const addedCols = new Set<string>();
+
+        function addTraceColumn(modelCol: string) {
+          const key = modelCol.toLowerCase();
+          if (addedCols.has(key)) return;
+          addedCols.add(key);
+          const catCol = catalogColumns.find((c) => c.name.toLowerCase() === key);
+          const sourceCol = columnRenames.get(key) ?? null;
+
+          traceColumns.push({
+            modelColumn: catCol?.name ?? modelCol,
+            modelColumnType: catCol?.type ?? null,
+            sourceColumn: sourceCol,
+            sourceName: sourceAnc?.name ?? null,
+            sourceDatabase: srcDetails?.database ?? null,
+            sourceSchema: srcDetails?.schema ?? null,
+          });
+        }
 
         if (referencedModelCols.length > 0) {
-          for (const modelCol of referencedModelCols) {
-            const catCol = catalogColumns.find((c) => c.name.toLowerCase() === modelCol.toLowerCase());
-            const sourceCol = columnRenames.get(modelCol.toLowerCase()) ?? null;
-
-            traceColumns.push({
-              modelColumn: catCol?.name ?? modelCol,
-              modelColumnType: catCol?.type ?? null,
-              sourceColumn: sourceCol && sourceCol !== modelCol.toLowerCase() ? sourceCol : sourceCol,
-              sourceName: sourceAnc?.name ?? null,
-              sourceDatabase: srcDetails?.database ?? null,
-              sourceSchema: srcDetails?.schema ?? null,
-            });
-          }
+          for (const modelCol of referencedModelCols) addTraceColumn(modelCol);
         } else {
-          // Expression doesn't directly match a column (e.g., "1" or complex function)
-          // Try to find referenced columns inside complex expressions
           const allModelColsLower = modelColumnNames.map((c) => c.toLowerCase());
           const exprLower = meas.expr.toLowerCase();
           const foundCols = allModelColsLower.filter((c) => exprLower.includes(c));
-
           for (const colLower of foundCols) {
             const catCol = catalogColumns.find((c) => c.name.toLowerCase() === colLower);
-            const sourceCol = columnRenames.get(colLower) ?? null;
-
-            traceColumns.push({
-              modelColumn: catCol?.name ?? colLower,
-              modelColumnType: catCol?.type ?? null,
-              sourceColumn: sourceCol,
-              sourceName: sourceAnc?.name ?? null,
-              sourceDatabase: srcDetails?.database ?? null,
-              sourceSchema: srcDetails?.schema ?? null,
-            });
+            addTraceColumn(catCol?.name ?? colLower);
           }
+        }
+
+        // Also include columns referenced by dimensions from this semantic model
+        for (const dim of sm.dimensions) {
+          const dimExpr = (dim.expr ?? dim.name).toLowerCase();
+          const matchingCol = catalogColumns.find((c) => c.name.toLowerCase() === dimExpr);
+          if (matchingCol) addTraceColumn(matchingCol.name);
         }
 
         traces.push({
