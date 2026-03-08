@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DbtMark, DbtWordmark } from "@/components/Icons";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const API_CALLS = [
   {
@@ -195,33 +196,33 @@ const API_CALLS = [
 const ENV_VARS = [
   {
     name: "DBT_SERVICE_TOKEN",
-    description: "A dbt Cloud service token with metadata access permissions.",
-    howToGet: "dbt Cloud → Account Settings → Service Tokens → Create. Grant \"Metadata Only\" or \"Member\" permissions.",
+    description: "A dbt Platform service token with metadata access permissions.",
+    howToGet: "dbt Platform → Account Settings → Service Tokens → Create. Grant \"Metadata Only\" or \"Member\" permissions.",
   },
   {
     name: "DBT_ACCOUNT_ID",
-    description: "Your dbt Cloud account identifier.",
-    howToGet: "Visible in the dbt Cloud URL: https://cloud.getdbt.com/deploy/{ACCOUNT_ID}/...",
+    description: "Your dbt Platform account identifier.",
+    howToGet: "Visible in the dbt Platform URL: https://cloud.getdbt.com/deploy/{ACCOUNT_ID}/...",
   },
   {
     name: "DBT_PROJECT_ID",
     description: "The numeric ID of your dbt project.",
-    howToGet: "dbt Cloud → your project → visible in the URL path.",
+    howToGet: "dbt Platform → your project → visible in the URL path.",
   },
   {
     name: "DBT_ENVIRONMENT_ID",
     description: "The production environment ID used for API queries.",
-    howToGet: "dbt Cloud → Environments → select your production environment → ID is in the URL.",
+    howToGet: "dbt Platform → Environments → select your production environment → ID is in the URL.",
   },
   {
     name: "DBT_DISCOVERY_API_URL",
     description: "The GraphQL endpoint for the dbt Discovery (metadata) API.",
-    howToGet: "Typically https://metadata.cloud.getdbt.com/graphql for multi-tenant dbt Cloud.",
+    howToGet: "Typically https://metadata.cloud.getdbt.com/graphql for multi-tenant dbt Platform.",
   },
   {
     name: "DBT_SEMANTIC_LAYER_API_URL",
     description: "The GraphQL endpoint for the dbt Semantic Layer API.",
-    howToGet: "Typically https://semantic-layer.cloud.getdbt.com/api/graphql for multi-tenant dbt Cloud.",
+    howToGet: "Typically https://semantic-layer.cloud.getdbt.com/api/graphql for multi-tenant dbt Platform.",
   },
 ];
 
@@ -263,7 +264,7 @@ function ApiCallCard({ call }: { call: (typeof API_CALLS)[number] }) {
           View GraphQL Query
         </summary>
         <div className="px-5 pb-4">
-          <pre className="text-[11px] font-mono bg-slate-50 border border-border rounded-lg p-4 overflow-x-auto text-slate-700 leading-relaxed">
+          <pre className="text-[11px] font-mono bg-surface-hover border border-border rounded-lg p-4 overflow-x-auto text-foreground leading-relaxed">
             {call.query}
           </pre>
         </div>
@@ -280,14 +281,17 @@ export default function HowItWorksPage() {
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <DbtMark size={24} className="rounded-lg" />
-            <h1 className="text-sm font-semibold text-foreground">dbt Metric Explorer</h1>
+            <h1 className="text-sm font-semibold text-foreground">dbt Platform Asset Explorer</h1>
           </div>
-          <Link
-            href="/"
-            className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-dbt-orange/10 text-dbt-orange hover:bg-dbt-orange/20 transition-colors"
-          >
-            &larr; Back to Home
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <ThemeToggle />
+            <Link
+              href="/"
+              className="text-[11px] font-medium px-3 py-1.5 rounded-lg bg-dbt-orange/10 text-dbt-orange hover:bg-dbt-orange/20 transition-colors"
+            >
+              &larr; Back to Home
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -296,9 +300,10 @@ export default function HowItWorksPage() {
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-foreground mb-2">How It Works</h1>
           <p className="text-sm text-muted leading-relaxed max-w-2xl">
-            This application connects to <strong>two dbt Cloud APIs</strong> to build a complete picture of your
-            semantic metrics &mdash; from upstream source tables, through models and semantic models, all the way
-            down to the dashboards that consume them.
+            This application connects to <strong>two dbt Platform APIs</strong> to build a complete picture of your
+            dbt project assets &mdash; from upstream source tables, through models and semantic models, to
+            metrics and the dashboards that consume them. It supports both Semantic Layer metric exploration
+            and general dbt asset lineage.
           </p>
         </div>
 
@@ -346,7 +351,7 @@ export default function HowItWorksPage() {
                 </div>
                 <p className="text-[11px] text-muted leading-relaxed">
                   Server-side routes proxy all API calls, keeping your service token secure. The frontend never
-                  contacts dbt Cloud directly.
+                  contacts dbt Platform directly.
                 </p>
               </div>
             </div>
@@ -410,7 +415,7 @@ export default function HowItWorksPage() {
                     <p className="text-[11px] text-muted mt-1">{v.description}</p>
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2 flex items-start gap-1.5">
+                <p className="text-[11px] text-muted mt-2 flex items-start gap-1.5">
                   <svg className="w-3 h-3 text-dbt-orange flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -424,7 +429,7 @@ export default function HowItWorksPage() {
         {/* .env.local example */}
         <section className="mb-12">
           <h2 className="text-lg font-semibold text-foreground mb-4">Example <code className="text-dbt-orange">.env.local</code></h2>
-          <pre className="text-[11px] font-mono bg-slate-50 border border-border rounded-xl p-5 overflow-x-auto text-slate-700 leading-relaxed">
+          <pre className="text-[11px] font-mono bg-surface-hover border border-border rounded-xl p-5 overflow-x-auto text-foreground leading-relaxed">
 {`DBT_SERVICE_TOKEN=dbtc_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 DBT_ACCOUNT_ID=12345
 DBT_PROJECT_ID=67890
@@ -468,7 +473,7 @@ DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql`}
           <h2 className="text-lg font-semibold text-foreground mb-4">Internal API Routes</h2>
           <p className="text-xs text-muted mb-4">
             The Next.js server exposes two routes that the frontend consumes. These proxy and aggregate data from the
-            dbt Cloud APIs above.
+            dbt Platform APIs above.
           </p>
           <div className="rounded-xl border border-border bg-surface overflow-hidden divide-y divide-border">
             <div className="px-5 py-4">
@@ -477,7 +482,7 @@ DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql`}
                 <code className="text-xs font-mono text-foreground">/api/metrics</code>
               </div>
               <p className="text-[11px] text-muted">
-                Returns all metrics, merged from Discovery API and Semantic Layer API. Used to populate the sidebar.
+                Returns all metrics, merged from Discovery API and Semantic Layer API. Used to populate the Semantic Layer Explorer sidebar.
               </p>
             </div>
             <div className="px-5 py-4">
@@ -490,13 +495,32 @@ DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql`}
                 column-level lineage traces. Orchestrates 5&ndash;7 dbt API calls in parallel.
               </p>
             </div>
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-500/10 px-1.5 py-0.5 rounded">GET</span>
+                <code className="text-xs font-mono text-foreground">/api/assets</code>
+              </div>
+              <p className="text-[11px] text-muted">
+                Returns all models, sources, and exposures from the Discovery API. Used to populate the Asset Explorer sidebar.
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-500/10 px-1.5 py-0.5 rounded">GET</span>
+                <code className="text-xs font-mono text-foreground">/api/assets/[id]/lineage</code>
+              </div>
+              <p className="text-[11px] text-muted">
+                Builds the full upstream and downstream lineage for any dbt model or source &mdash; including
+                ancestor models, child models, semantic models, metrics, exposures, and column-level lineage from catalog columns.
+              </p>
+            </div>
           </div>
         </section>
 
         {/* Footer */}
         <footer className="border-t border-border pt-6 pb-10 text-center">
           <DbtWordmark width={48} height={20} className="mx-auto mb-2 opacity-40" />
-          <p className="text-[10px] text-muted">dbt Metric Explorer</p>
+          <p className="text-[10px] text-muted">dbt Platform Asset Explorer</p>
         </footer>
       </main>
     </div>

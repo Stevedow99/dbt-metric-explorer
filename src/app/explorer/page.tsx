@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { DbtMark } from "@/components/Icons";
+import ThemeToggle from "@/components/ThemeToggle";
 import MetricSidebar from "@/components/MetricSidebar";
 import MetricDetail from "@/components/MetricDetail";
 import DimensionsPanel from "@/components/DimensionsPanel";
@@ -206,6 +207,10 @@ export default function ExplorerPage() {
                       {btn.label}
                     </button>
                   ))}
+                </div>
+
+                <div className="border-l border-border pl-2.5">
+                  <ThemeToggle />
                 </div>
               </div>
             </div>

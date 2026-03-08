@@ -17,6 +17,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { ColumnLineageData, NamingMode, isSigmaUrl } from "@/lib/types";
 import { SigmaLogo } from "@/components/Icons";
+import { useDarkMode } from "@/lib/useDarkMode";
 
 // ─── Dimensions ──────────────────────────────────────────────────────────────
 
@@ -34,13 +35,14 @@ function SourceColumnNode({ data }: { data: Record<string, unknown> }) {
   const col = data.col as string;
   const table = data.table as string;
   const path = data.path as string | undefined;
+  const dk = data.isDark as boolean;
   return (
-    <div className="rounded-lg flex items-center gap-2.5 px-3" style={{ background: "#FEFCE8", border: "1px solid #EAB30840", width: SOURCE_W, height: SOURCE_H, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-      <Handle type="source" position={Position.Right} style={{ background: "#EAB308", width: 6, height: 6 }} />
-      <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: "#EAB30818", color: "#CA8A04" }}>SRC</span>
+    <div className="rounded-lg flex items-center gap-2.5 px-3 overflow-hidden" style={{ background: dk ? "#1E1B0C" : "#FEFCE8", border: `1px solid ${dk ? "#FACC1540" : "#EAB30840"}`, width: SOURCE_W, height: SOURCE_H, boxShadow: `0 1px 2px rgba(0,0,0,${dk ? "0.2" : "0.04"})` }}>
+      <Handle type="source" position={Position.Right} style={{ background: dk ? "#FACC15" : "#EAB308", width: 6, height: 6 }} />
+      <span className="text-[8px] font-bold px-1 py-0.5 rounded flex-shrink-0" style={{ background: dk ? "#FACC1520" : "#EAB30818", color: dk ? "#FACC15" : "#CA8A04" }}>SRC</span>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-mono text-slate-700 truncate">{col}</div>
-        <div className="text-[8px] text-slate-400 truncate">{table}{path ? ` · ${path}` : ""}</div>
+        <div className="text-[11px] font-mono truncate" style={{ color: dk ? "#E2E8F0" : "#334155" }} title={col}>{col}</div>
+        <div className="text-[8px] truncate" style={{ color: dk ? "#94A3B8" : "#94A3B8" }} title={`${table}${path ? ` · ${path}` : ""}`}>{table}{path ? ` · ${path}` : ""}</div>
       </div>
     </div>
   );
@@ -51,15 +53,18 @@ function ModelColumnNode({ data }: { data: Record<string, unknown> }) {
   const colType = data.colType as string | null;
   const model = data.model as string;
   const renamed = data.renamed as boolean;
+  const dk = data.isDark as boolean;
+  const bg = dk ? (renamed ? "#0F1E2D" : "#0F2218") : (renamed ? "#EFF6FF" : "#F0FDF4");
+  const borderCol = renamed ? (dk ? "#7DD3FC50" : "#38BDF850") : (dk ? "#4ADE8040" : "#22C55E40");
   return (
-    <div className="rounded-lg flex items-center justify-between px-3" style={{ background: renamed ? "#EFF6FF" : "#F0FDF4", border: `1px solid ${renamed ? "#38BDF850" : "#22C55E40"}`, width: COL_W, height: COL_H, boxShadow: renamed ? "0 0 0 2px #38BDF815" : "0 1px 2px rgba(0,0,0,0.04)" }}>
-      <Handle type="target" position={Position.Left} style={{ background: "#22C55E", width: 6, height: 6 }} />
-      <Handle type="source" position={Position.Right} style={{ background: "#22C55E", width: 6, height: 6 }} />
+    <div className="rounded-lg flex items-center justify-between px-3 overflow-hidden" style={{ background: bg, border: `1px solid ${borderCol}`, width: COL_W, height: COL_H, boxShadow: renamed ? `0 0 0 2px ${dk ? "#38BDF810" : "#38BDF815"}` : `0 1px 2px rgba(0,0,0,${dk ? "0.2" : "0.04"})` }}>
+      <Handle type="target" position={Position.Left} style={{ background: dk ? "#4ADE80" : "#22C55E", width: 6, height: 6 }} />
+      <Handle type="source" position={Position.Right} style={{ background: dk ? "#4ADE80" : "#22C55E", width: 6, height: 6 }} />
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-mono text-slate-700 truncate">{col}</div>
-        <div className="text-[8px] text-slate-400 truncate">{model}</div>
+        <div className="text-[11px] font-mono truncate" style={{ color: dk ? "#E2E8F0" : "#334155" }} title={col}>{col}</div>
+        <div className="text-[8px] truncate" style={{ color: dk ? "#94A3B8" : "#94A3B8" }} title={model}>{model}</div>
       </div>
-      {colType && <span className="text-[8px] px-1.5 py-0.5 rounded ml-2 flex-shrink-0" style={{ background: "#F1F5F9", color: "#64748B" }}>{colType}</span>}
+      {colType && <span className="text-[8px] px-1.5 py-0.5 rounded ml-2 flex-shrink-0" style={{ background: dk ? "#334155" : "#F1F5F9", color: dk ? "#94A3B8" : "#64748B" }}>{colType}</span>}
     </div>
   );
 }
@@ -69,28 +74,30 @@ function MeasureNode({ data }: { data: Record<string, unknown> }) {
   const agg = data.agg as string;
   const expr = data.expr as string;
   const sm = data.sm as string;
+  const dk = data.isDark as boolean;
   return (
-    <div className="rounded-xl px-3 py-2" style={{ background: "#FFF7F5", border: "1.5px solid #FF694B50", width: MEASURE_W, height: MEASURE_H, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+    <div className="rounded-xl px-3 py-2 overflow-hidden" style={{ background: dk ? "#2D1A15" : "#FFF7F5", border: `1.5px solid ${dk ? "#FF694B50" : "#FF694B50"}`, width: MEASURE_W, height: MEASURE_H, boxShadow: `0 1px 3px rgba(0,0,0,${dk ? "0.2" : "0.06"})` }}>
       <Handle type="target" position={Position.Left} style={{ background: "#FF694B", width: 7, height: 7 }} />
       <Handle type="source" position={Position.Right} style={{ background: "#FF694B", width: 7, height: 7 }} />
-      <div className="flex items-center gap-2 mb-0.5">
-        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: "#FF694B18", color: "#FF694B" }}>{agg}</span>
-        <span className="text-[11px] font-semibold text-slate-800 truncate">{name}</span>
+      <div className="flex items-center gap-2 mb-0.5 min-w-0">
+        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0" style={{ background: "#FF694B18", color: "#FF694B" }}>{agg}</span>
+        <span className="text-[11px] font-semibold truncate min-w-0" style={{ color: dk ? "#F1F5F9" : "#1E293B" }} title={name}>{name}</span>
       </div>
       <div className="text-[10px] font-mono text-dbt-orange/80 truncate" title={expr}>{expr}</div>
-      <div className="text-[8px] text-slate-400 mt-0.5">SM: {sm}</div>
+      <div className="text-[8px] mt-0.5 truncate" style={{ color: dk ? "#94A3B8" : "#94A3B8" }} title={`SM: ${sm}`}>SM: {sm}</div>
     </div>
   );
 }
 
 function MetricNode({ data }: { data: Record<string, unknown> }) {
   const name = data.label as string;
+  const dk = data.isDark as boolean;
   return (
-    <div className="rounded-xl flex items-center gap-3 px-4" style={{ background: "#FFF7F5", border: "2px solid #FF694B", width: METRIC_W, height: METRIC_H, boxShadow: "0 2px 8px #FF694B20" }}>
+    <div className="rounded-xl flex items-center gap-3 px-4 overflow-hidden" style={{ background: dk ? "#2D1A15" : "#FFF7F5", border: "2px solid #FF694B", width: METRIC_W, height: METRIC_H, boxShadow: `0 2px 8px ${dk ? "#FF694B30" : "#FF694B20"}` }}>
       <Handle type="target" position={Position.Left} style={{ background: "#FF694B", width: 8, height: 8 }} />
       <Handle type="source" position={Position.Right} style={{ background: "#FF694B", width: 8, height: 8 }} />
-      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#FF694B18", color: "#FF694B" }}>METRIC</span>
-      <span className="text-[13px] font-bold text-slate-800 truncate">{name}</span>
+      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "#FF694B18", color: "#FF694B" }}>METRIC</span>
+      <span className="text-[13px] font-bold truncate min-w-0" style={{ color: dk ? "#F1F5F9" : "#1E293B" }} title={name}>{name}</span>
     </div>
   );
 }
@@ -98,14 +105,15 @@ function MetricNode({ data }: { data: Record<string, unknown> }) {
 function DimensionNode({ data }: { data: Record<string, unknown> }) {
   const name = data.label as string;
   const dimType = data.dimType as string;
+  const dk = data.isDark as boolean;
   return (
-    <div className="rounded-lg flex items-center justify-between px-3" style={{ background: "#FAF5FF", border: "1px solid #A855F740", width: DIM_W, height: DIM_H, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-      <Handle type="target" position={Position.Left} style={{ background: "#A855F7", width: 6, height: 6 }} />
-      <div className="flex items-center gap-2">
-        <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: "#A855F715", color: "#9333EA" }}>DIM</span>
-        <span className="text-[10px] font-medium text-slate-700 truncate">{name}</span>
+    <div className="rounded-lg flex items-center justify-between px-3 overflow-hidden" style={{ background: dk ? "#1E1530" : "#FAF5FF", border: `1px solid ${dk ? "#C084FC40" : "#A855F740"}`, width: DIM_W, height: DIM_H, boxShadow: `0 1px 2px rgba(0,0,0,${dk ? "0.2" : "0.04"})` }}>
+      <Handle type="target" position={Position.Left} style={{ background: dk ? "#C084FC" : "#A855F7", width: 6, height: 6 }} />
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-[8px] font-bold px-1 py-0.5 rounded flex-shrink-0" style={{ background: dk ? "#C084FC15" : "#A855F715", color: dk ? "#C084FC" : "#9333EA" }}>DIM</span>
+        <span className="text-[10px] font-medium truncate min-w-0" style={{ color: dk ? "#E2E8F0" : "#334155" }} title={name}>{name}</span>
       </div>
-      <span className="text-[8px] px-1.5 py-0.5 rounded font-medium" style={{ background: "#A855F710", color: "#9333EA" }}>{dimType}</span>
+      <span className="text-[8px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ml-1" style={{ background: dk ? "#C084FC10" : "#A855F710", color: dk ? "#C084FC" : "#9333EA" }}>{dimType}</span>
     </div>
   );
 }
@@ -113,14 +121,15 @@ function DimensionNode({ data }: { data: Record<string, unknown> }) {
 function EntityNode({ data }: { data: Record<string, unknown> }) {
   const name = data.label as string;
   const entType = data.entType as string;
+  const dk = data.isDark as boolean;
   return (
-    <div className="rounded-lg flex items-center justify-between px-3" style={{ background: "#F8FAFC", border: "1px solid #CBD5E130", width: ENTITY_W, height: ENTITY_H, boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
+    <div className="rounded-lg flex items-center justify-between px-3 overflow-hidden" style={{ background: dk ? "#1E293B" : "#F8FAFC", border: `1px solid ${dk ? "#47556930" : "#CBD5E130"}`, width: ENTITY_W, height: ENTITY_H, boxShadow: `0 1px 2px rgba(0,0,0,${dk ? "0.15" : "0.03"})` }}>
       <Handle type="target" position={Position.Left} style={{ background: "#94A3B8", width: 6, height: 6 }} />
-      <div className="flex items-center gap-2">
-        <span className="text-[8px] font-bold px-1 py-0.5 rounded" style={{ background: "#94A3B812", color: "#94A3B8" }}>KEY</span>
-        <span className="text-[10px] font-medium text-slate-400 truncate">{name}</span>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-[8px] font-bold px-1 py-0.5 rounded flex-shrink-0" style={{ background: "#94A3B812", color: "#94A3B8" }}>KEY</span>
+        <span className="text-[10px] font-medium truncate min-w-0" style={{ color: dk ? "#94A3B8" : "#94A3B8" }} title={name}>{name}</span>
       </div>
-      <span className="text-[8px] px-1.5 py-0.5 rounded font-medium" style={{ background: "#94A3B810", color: "#94A3B8" }}>{entType}</span>
+      <span className="text-[8px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ml-1" style={{ background: "#94A3B810", color: "#94A3B8" }}>{entType}</span>
     </div>
   );
 }
@@ -129,18 +138,19 @@ function ExposureNode({ data }: { data: Record<string, unknown> }) {
   const label = data.label as string;
   const expType = data.expType as string | null;
   const url = data.url as string | null;
+  const dk = data.isDark as boolean;
   const isSigma = isSigmaUrl(url ?? undefined);
   return (
-    <div className="rounded-xl flex items-center gap-2.5 px-3" style={{ background: "#EEF2FF", border: "1.5px solid #6366F150", width: EXPOSURE_W, height: EXPOSURE_H, boxShadow: "0 1px 4px rgba(99,102,241,0.10)" }}>
-      <Handle type="target" position={Position.Left} style={{ background: "#6366F1", width: 7, height: 7 }} />
+    <div className="rounded-xl flex items-center gap-2.5 px-3 overflow-hidden" style={{ background: dk ? "#151830" : "#EEF2FF", border: `1.5px solid ${dk ? "#818CF850" : "#6366F150"}`, width: EXPOSURE_W, height: EXPOSURE_H, boxShadow: `0 1px 4px rgba(99,102,241,${dk ? "0.15" : "0.10"})` }}>
+      <Handle type="target" position={Position.Left} style={{ background: dk ? "#818CF8" : "#6366F1", width: 7, height: 7 }} />
       {isSigma ? (
         <SigmaLogo size={18} className="rounded flex-shrink-0" />
       ) : (
-        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#6366F118", color: "#6366F1" }}>{(expType ?? "DASHBOARD").toUpperCase()}</span>
+        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: dk ? "#818CF818" : "#6366F118", color: dk ? "#818CF8" : "#6366F1" }}>{(expType ?? "DASHBOARD").toUpperCase()}</span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold text-slate-800 truncate">{label}</div>
-        {url && <div className="text-[8px] text-indigo-500/70 truncate">{url}</div>}
+        <div className="text-[11px] font-semibold truncate" style={{ color: dk ? "#F1F5F9" : "#1E293B" }} title={label}>{label}</div>
+        {url && <div className="text-[8px] truncate" style={{ color: dk ? "#A5B4FC" : "#6366F1", opacity: 0.7 }} title={url}>{url}</div>}
       </div>
     </div>
   );
@@ -161,7 +171,8 @@ const nodeTypes = {
 function buildColumnGraph(
   data: ColumnLineageData,
   metricName: string,
-  _namingMode: NamingMode
+  _namingMode: NamingMode,
+  isDark: boolean
 ): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
@@ -246,7 +257,7 @@ function buildColumnGraph(
     }
   }
 
-  // 3. Dimensions
+  // 3. Dimensions — trace back through model columns to sources
   for (const d of data.dimensions) {
     const dId = `dim:${d.semanticModelName}.${d.name}`;
     graphNodes.push({
@@ -255,6 +266,50 @@ function buildColumnGraph(
     });
     g.setNode(dId, { width: DIM_W, height: DIM_H });
     addEdge(dId, metricId, "#A855F740");
+
+    // Find which column this dimension references via expr or name
+    const dimExpr = (d.expr ?? d.name).toLowerCase();
+    const relatedTrace = data.traces.find((t) => t.semanticModelName === d.semanticModelName);
+    if (relatedTrace) {
+      // Look for a model column that matches the dimension expression
+      const matchingCol = relatedTrace.columns.find(
+        (c) => c.modelColumn.toLowerCase() === dimExpr
+      );
+
+      if (matchingCol) {
+        const modelColId = `mcol:${relatedTrace.modelId}.${matchingCol.modelColumn}`;
+        if (!seenModelCols.has(modelColId)) {
+          seenModelCols.add(modelColId);
+          const isRenamed = matchingCol.sourceColumn !== null && matchingCol.sourceColumn.toLowerCase() !== matchingCol.modelColumn.toLowerCase();
+          graphNodes.push({
+            id: modelColId,
+            type: "modelColumn",
+            position: { x: 0, y: 0 },
+            data: { col: matchingCol.modelColumn, colType: matchingCol.modelColumnType, model: relatedTrace.modelName, renamed: isRenamed },
+          });
+          g.setNode(modelColId, { width: COL_W, height: COL_H });
+        }
+        addEdge(modelColId, dId, "#A855F750");
+
+        // Also add the source column if available
+        if (matchingCol.sourceColumn && matchingCol.sourceName) {
+          const srcColId = `scol:${matchingCol.sourceName}.${matchingCol.sourceColumn}`;
+          if (!seenSourceCols.has(srcColId)) {
+            seenSourceCols.add(srcColId);
+            const path = matchingCol.sourceDatabase && matchingCol.sourceSchema ? `${matchingCol.sourceDatabase}.${matchingCol.sourceSchema}` : undefined;
+            graphNodes.push({
+              id: srcColId,
+              type: "sourceColumn",
+              position: { x: 0, y: 0 },
+              data: { col: matchingCol.sourceColumn, table: matchingCol.sourceName, path },
+            });
+            g.setNode(srcColId, { width: SOURCE_W, height: SOURCE_H });
+          }
+          const isRenamed = matchingCol.sourceColumn.toLowerCase() !== matchingCol.modelColumn.toLowerCase();
+          addEdge(srcColId, modelColId, "#EAB30870", false, isRenamed);
+        }
+      }
+    }
   }
 
   // 4. Entities
@@ -292,6 +347,9 @@ function buildColumnGraph(
     }
   }
 
+  // Inject isDark into every node's data
+  for (const n of graphNodes) n.data.isDark = isDark;
+
   // Layout
   for (const e of graphEdges) {
     if (g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
@@ -317,9 +375,11 @@ interface ColumnLineageGraphProps {
 }
 
 export default function ColumnLineageGraph({ data, metricName, namingMode }: ColumnLineageGraphProps) {
+  const isDark = useDarkMode();
+
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => buildColumnGraph(data, metricName, namingMode),
-    [data, metricName, namingMode]
+    () => buildColumnGraph(data, metricName, namingMode, isDark),
+    [data, metricName, namingMode, isDark]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
@@ -339,8 +399,8 @@ export default function ColumnLineageGraph({ data, metricName, namingMode }: Col
         fitView fitViewOptions={{ padding: 0.15 }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#E2E8F0" gap={24} size={1} />
-        <Controls style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10 }} />
+        <Background color={isDark ? "#334155" : "#E2E8F0"} gap={24} size={1} />
+        <Controls style={{ background: isDark ? "#1E293B" : "#FFFFFF", border: `1px solid ${isDark ? "#334155" : "#E2E8F0"}`, borderRadius: 10 }} />
       </ReactFlow>
     </div>
   );

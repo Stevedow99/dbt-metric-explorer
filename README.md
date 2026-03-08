@@ -8,7 +8,7 @@ A web application for exploring dbt semantic metrics, visualizing lineage graphs
 
 ## What Does This App Do?
 
-This app connects to your dbt Cloud account and lets you:
+This app connects to your dbt Platform account and lets you:
 
 - **Metric Explorer** — Browse every metric in your dbt project and see interactive lineage graphs showing exactly how data flows from source tables through models and semantic models, all the way to the dashboards that consume them. Supports both object-level and column-level lineage.
 - **Query Lab** — Pick a metric and dimensions from dropdowns, see a live 5-row sample of actual data from the Semantic Layer, view the SQL it generated, and trace the full lineage in real time.
@@ -70,9 +70,9 @@ This will download all the libraries the app needs. It may take a minute or two.
 
 > **If you see warnings**, that's normal. Warnings are fine. Only red **errors** are a problem.
 
-### Step 4: Set Up Your dbt Cloud Credentials
+### Step 4: Set Up Your dbt Platform Credentials
 
-The app needs to connect to your dbt Cloud account. You'll create a configuration file with your credentials.
+The app needs to connect to your dbt Platform account. You'll create a configuration file with your credentials.
 
 #### 4a. Create the config file
 
@@ -105,9 +105,9 @@ Open `.env.local` in any text editor and replace the placeholder values. Here's 
 
 ---
 
-**`DBT_SERVICE_TOKEN`** — Your dbt Cloud service token
+**`DBT_SERVICE_TOKEN`** — Your dbt Platform service token
 
-1. Log in to [dbt Cloud](https://cloud.getdbt.com)
+1. Log in to [dbt Platform](https://cloud.getdbt.com)
 2. Click the **gear icon** (⚙️) in the top right → **Account Settings**
 3. In the left sidebar, click **Service Tokens**
 4. Click **+ New Token**
@@ -123,7 +123,7 @@ Open `.env.local` in any text editor and replace the placeholder values. Here's 
 
 **`DBT_ACCOUNT_ID`** — Your account ID number
 
-1. In dbt Cloud, look at the URL in your browser's address bar
+1. In dbt Platform, look at the URL in your browser's address bar
 2. It looks like: `https://cloud.getdbt.com/deploy/77338/projects/...`
 3. The number after `/deploy/` is your Account ID
 4. Example: `DBT_ACCOUNT_ID=77338`
@@ -132,7 +132,7 @@ Open `.env.local` in any text editor and replace the placeholder values. Here's 
 
 **`DBT_PROJECT_ID`** — Your project ID number
 
-1. In dbt Cloud, navigate to your project
+1. In dbt Platform, navigate to your project
 2. Look at the URL: `https://cloud.getdbt.com/deploy/77338/projects/131392/...`
 3. The number after `/projects/` is your Project ID
 4. Example: `DBT_PROJECT_ID=131392`
@@ -141,7 +141,7 @@ Open `.env.local` in any text editor and replace the placeholder values. Here's 
 
 **`DBT_ENVIRONMENT_ID`** — Your production environment ID
 
-1. In dbt Cloud, go to **Deploy** → **Environments**
+1. In dbt Platform, go to **Deploy** → **Environments**
 2. Click on your **Production** environment
 3. Look at the URL: `https://cloud.getdbt.com/deploy/77338/projects/131392/environments/105436`
 4. The last number is your Environment ID
@@ -153,14 +153,14 @@ Open `.env.local` in any text editor and replace the placeholder values. Here's 
 
 **`DBT_DISCOVERY_API_URL`** and **`DBT_SEMANTIC_LAYER_API_URL`**
 
-For most dbt Cloud users (multi-tenant), these are:
+For most dbt Platform users (multi-tenant), these are:
 
 ```
 DBT_DISCOVERY_API_URL=https://metadata.cloud.getdbt.com/graphql
 DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql
 ```
 
-You only need to change these if your organization uses a single-tenant or self-hosted dbt Cloud instance. If you're not sure, the defaults above are almost certainly correct.
+You only need to change these if your organization uses a single-tenant or self-hosted dbt Platform instance. If you're not sure, the defaults above are almost certainly correct.
 
 ---
 
@@ -170,9 +170,9 @@ Your finished `.env.local` should look something like this (with your real value
 
 ```
 DBT_SERVICE_TOKEN=dbtc_abc123xyz456def789...
-DBT_ACCOUNT_ID=77338
-DBT_PROJECT_ID=131392
-DBT_ENVIRONMENT_ID=105436
+DBT_ACCOUNT_ID=541142
+DBT_PROJECT_ID=987654
+DBT_ENVIRONMENT_ID=501467
 DBT_DISCOVERY_API_URL=https://metadata.cloud.getdbt.com/graphql
 DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql
 ```
@@ -257,9 +257,9 @@ Reference documentation showing every API call, the GraphQL queries used, requir
 | [Tailwind CSS](https://tailwindcss.com) 4 | Styling and theming |
 | TypeScript | Type safety across the entire codebase |
 
-## dbt Cloud APIs Used
+## dbt Platform APIs Used
 
-The app connects to two dbt Cloud GraphQL APIs. All calls are made server-side through Next.js API routes — your service token is **never** sent to the browser.
+The app connects to two dbt Platform GraphQL APIs. All calls are made server-side through Next.js API routes — your service token is **never** sent to the browser.
 
 | API | Endpoint | What it provides |
 |---|---|---|
@@ -286,7 +286,7 @@ Make sure you're inside the project folder when you run the command. You can ver
 
 ### "Query failed" in the Query Lab
 
-- The **Semantic Layer** must be enabled for your dbt Cloud project (this is a dbt Cloud setting, not something in this app)
+- The **Semantic Layer** must be enabled for your dbt Platform project (this is a dbt Platform setting, not something in this app)
 - Verify `DBT_SEMANTIC_LAYER_API_URL` is correct
 
 ### Port 3000 is already in use

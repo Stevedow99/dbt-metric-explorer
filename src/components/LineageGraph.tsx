@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
+import { useDarkMode } from "@/lib/useDarkMode";
 import {
   ReactFlow,
   Background,
@@ -28,7 +29,9 @@ import { DbtMark, SigmaLogo } from "@/components/Icons";
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 88;
 
-const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string; label: string }> = {
+interface TypeStyle { bg: string; border: string; icon: string; label: string }
+
+const TYPE_STYLES_LIGHT: Record<string, TypeStyle> = {
   metric:         { bg: "#FFF7F5", border: "#FF694B", icon: "M",  label: "Metric" },
   semantic_model: { bg: "#FAF5FF", border: "#A855F7", icon: "SM", label: "Semantic Model" },
   model:          { bg: "#F0FDF4", border: "#22C55E", icon: "Mo", label: "Model" },
@@ -36,6 +39,16 @@ const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string; la
   seed:           { bg: "#FDF2F8", border: "#EC4899", icon: "Se", label: "Seed" },
   snapshot:       { bg: "#F0F9FF", border: "#38BDF8", icon: "Sn", label: "Snapshot" },
   exposure:       { bg: "#EEF2FF", border: "#6366F1", icon: "E",  label: "Dashboard" },
+};
+
+const TYPE_STYLES_DARK: Record<string, TypeStyle> = {
+  metric:         { bg: "#2D1A15", border: "#FF694B", icon: "M",  label: "Metric" },
+  semantic_model: { bg: "#1E1530", border: "#C084FC", icon: "SM", label: "Semantic Model" },
+  model:          { bg: "#0F2218", border: "#4ADE80", icon: "Mo", label: "Model" },
+  source:         { bg: "#1E1B0C", border: "#FACC15", icon: "S",  label: "Source" },
+  seed:           { bg: "#2D1425", border: "#F472B6", icon: "Se", label: "Seed" },
+  snapshot:       { bg: "#0F1E2D", border: "#7DD3FC", icon: "Sn", label: "Snapshot" },
+  exposure:       { bg: "#151830", border: "#818CF8", icon: "E",  label: "Dashboard" },
 };
 
 function getStatusColor(status: string | null | undefined): string {
@@ -52,11 +65,15 @@ function getStatusColor(status: string | null | undefined): string {
 function CustomNode({ data }: { data: Record<string, unknown> }) {
   const node = data.lineageNode as LineageNode;
   const namingMode = (data.namingMode as NamingMode) ?? "dbt";
-  const style = TYPE_STYLES[node.type] ?? TYPE_STYLES.model;
+  const isDark = data.isDark as boolean;
+  const styles = isDark ? TYPE_STYLES_DARK : TYPE_STYLES_LIGHT;
+  const style = styles[node.type] ?? styles.model;
   const displayName = getDisplayName(node, namingMode);
   const subtitle = getTableSubtitle(node, namingMode);
   const isSigma = node.type === "exposure" && isSigmaUrl(node.url);
   const status = node.executionInfo?.lastRunStatus ?? node.freshness?.freshnessStatus;
+  const textPrimary = isDark ? "#F1F5F9" : "#1E293B";
+  const textSecondary = isDark ? "#94A3B8" : "#64748B";
 
   return (
     <div
@@ -67,13 +84,12 @@ function CustomNode({ data }: { data: Record<string, unknown> }) {
         width: NODE_WIDTH,
         minHeight: NODE_HEIGHT,
         padding: "10px 14px",
-        boxShadow: `0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px ${style.border}20`,
+        boxShadow: `0 1px 3px rgba(0,0,0,${isDark ? "0.3" : "0.08"}), 0 0 0 1px ${style.border}20`,
       }}
     >
       <Handle type="target" position={Position.Left} style={{ background: style.border, width: 8, height: 8 }} />
       <Handle type="source" position={Position.Right} style={{ background: style.border, width: 8, height: 8 }} />
 
-      {/* Header row */}
       <div className="flex items-center gap-2 mb-1.5">
         {isSigma ? (
           <SigmaLogo size={16} className="rounded flex-shrink-0" />
@@ -87,7 +103,7 @@ function CustomNode({ data }: { data: Record<string, unknown> }) {
             {style.icon}
           </span>
         )}
-        <span className="text-[11px] font-semibold truncate flex-1" style={{ color: "#1E293B" }} title={displayName}>
+        <span className="text-[11px] font-semibold truncate flex-1" style={{ color: textPrimary }} title={displayName}>
           {displayName}
         </span>
         {status && (
@@ -95,33 +111,28 @@ function CustomNode({ data }: { data: Record<string, unknown> }) {
         )}
       </div>
 
-      {/* Type label */}
       <div className="text-[9px] font-medium uppercase tracking-wider mb-1" style={{ color: style.border + "AA" }}>
         {isSigma ? "Sigma Dashboard" : style.label}
       </div>
 
-      {/* Table path (formatted) */}
       {subtitle && (
-        <div className="text-[9px] text-slate-500 truncate font-mono" title={subtitle}>
+        <div className="text-[9px] truncate font-mono" style={{ color: textSecondary }} title={subtitle}>
           {subtitle}
         </div>
       )}
 
-      {/* dbt mode: show materializedType */}
       {namingMode === "dbt" && node.materializedType && node.type !== "exposure" && !subtitle && (
-        <div className="text-[9px] text-slate-500">{node.materializedType}</div>
+        <div className="text-[9px]" style={{ color: textSecondary }}>{node.materializedType}</div>
       )}
 
-      {/* Exposure URL domain */}
       {node.type === "exposure" && node.url && (
-        <div className="text-[9px] text-indigo-600/70 truncate font-mono" title={node.url}>
+        <div className="text-[9px] truncate font-mono" style={{ color: isDark ? "#A5B4FC" : "#4F46E5", opacity: 0.7 }} title={node.url}>
           {node.url.replace(/^https?:\/\//, "").split("/")[0]}
         </div>
       )}
 
-      {/* Execution time */}
       {node.executionInfo?.executionTime != null && (
-        <div className="text-[9px] text-slate-500 mt-0.5">{node.executionInfo.executionTime.toFixed(1)}s</div>
+        <div className="text-[9px] mt-0.5" style={{ color: textSecondary }}>{node.executionInfo.executionTime.toFixed(1)}s</div>
       )}
     </div>
   );
@@ -132,7 +143,8 @@ const nodeTypes = { custom: CustomNode };
 function layoutGraph(
   lineageNodes: LineageNode[],
   lineageEdges: LineageEdge[],
-  namingMode: NamingMode
+  namingMode: NamingMode,
+  isDark: boolean
 ): { nodes: Node[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
@@ -151,10 +163,11 @@ function layoutGraph(
       id: n.id,
       type: "custom",
       position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
-      data: { lineageNode: n, namingMode },
+      data: { lineageNode: n, namingMode, isDark },
     };
   });
 
+  const edgeColor = isDark ? "#475569" : "#CBD5E1";
   const edges: Edge[] = lineageEdges
     .filter((e) => g.hasNode(e.source) && g.hasNode(e.target))
     .map((e, i) => ({
@@ -163,8 +176,8 @@ function layoutGraph(
       target: e.target,
       type: "smoothstep",
       animated: true,
-      style: { stroke: "#CBD5E1", strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#CBD5E1", width: 16, height: 16 },
+      style: { stroke: edgeColor, strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 16, height: 16 },
     }));
 
   return { nodes, edges };
@@ -178,9 +191,11 @@ interface LineageGraphProps {
 }
 
 export default function LineageGraph({ lineageNodes, lineageEdges, namingMode, onNodeClick }: LineageGraphProps) {
+  const isDark = useDarkMode();
+
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => layoutGraph(lineageNodes, lineageEdges, namingMode),
-    [lineageNodes, lineageEdges, namingMode]
+    () => layoutGraph(lineageNodes, lineageEdges, namingMode, isDark),
+    [lineageNodes, lineageEdges, namingMode, isDark]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
@@ -207,8 +222,8 @@ export default function LineageGraph({ lineageNodes, lineageEdges, namingMode, o
         fitView fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#E2E8F0" gap={24} size={1} />
-        <Controls style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10 }} />
+        <Background color={isDark ? "#334155" : "#E2E8F0"} gap={24} size={1} />
+        <Controls style={{ background: isDark ? "#1E293B" : "#FFFFFF", border: `1px solid ${isDark ? "#334155" : "#E2E8F0"}`, borderRadius: 10 }} />
       </ReactFlow>
     </div>
   );
