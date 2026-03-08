@@ -11,162 +11,83 @@ A web application for exploring dbt semantic metrics, visualizing lineage graphs
 This app connects to your dbt Platform account and lets you:
 
 - **Metric Explorer** — Browse every metric in your dbt project and see interactive lineage graphs showing exactly how data flows from source tables through models and semantic models, all the way to the dashboards that consume them. Supports both object-level and column-level lineage.
-- **Query Lab** — Pick a metric and dimensions from dropdowns, see a live 5-row sample of actual data from the Semantic Layer, view the SQL it generated, and trace the full lineage in real time.
+- **Query Lab** — Pick a metric and dimensions from dropdowns, see a live sample of actual data from the Semantic Layer, view the compiled SQL, and trace the full column-level lineage in real time.
 - **How It Works** — An in-app reference page that documents every API call, required credentials, and the architecture behind the scenes.
 
 ---
 
-## Step-by-Step Setup Guide
+## Quick Start
 
-Follow these steps in order. If you run into issues, check the [Troubleshooting](#troubleshooting) section at the bottom.
+The fastest way to get running. You'll need [Node.js](https://nodejs.org) 18+ installed.
 
-### Step 1: Install Node.js
+```bash
+git clone <repo-url>
+cd dbt-metric-explorer
+npm run setup
+```
+
+The setup wizard will:
+
+1. Prompt you for your dbt Platform credentials (service token, account/project/environment IDs)
+2. Write them to `.env.local`
+3. Install all dependencies
+4. Offer to start the app immediately
+
+Once running, open **http://localhost:3000** in your browser.
+
+> **Already set up?** Just run `npm run dev` to start the app. Run `npm run setup` again any time to update your credentials.
+
+---
+
+## Prerequisites
 
 This app requires **Node.js** (version 18 or higher). If you don't have it installed:
 
 1. Go to [https://nodejs.org](https://nodejs.org)
 2. Download the **LTS** version (the big green button)
-3. Run the installer and follow the prompts (just click "Next" through everything)
-4. When it's done, verify it worked by opening a terminal and running:
+3. Run the installer and follow the prompts
+4. Verify it worked:
 
 ```bash
 node -v
 ```
 
-You should see something like `v20.x.x` or `v22.x.x`. Any version 18 or higher works.
+You should see something like `v20.x.x` or `v22.x.x`.
 
 > **How to open a terminal:**
 > - **Mac**: Open the "Terminal" app (search for it in Spotlight with Cmd+Space)
 > - **Windows**: Open "Command Prompt" or "PowerShell" from the Start menu
 > - **VS Code / Cursor**: Use the built-in terminal (Ctrl+` or Cmd+`)
 
-### Step 2: Download the Project
+---
 
-If you received this as a zip file, unzip it and note where the folder is.
+## Manual Setup (Alternative)
 
-If you're cloning from a git repository:
+If you prefer to set things up manually instead of using `npm run setup`:
+
+### 1. Download and install dependencies
 
 ```bash
 git clone <repo-url>
-```
-
-Then navigate into the project folder:
-
-```bash
 cd dbt-metric-explorer
-```
-
-> **Tip:** You can also drag the folder onto your terminal window on Mac to auto-fill the path, then press Enter.
-
-### Step 3: Install Dependencies
-
-From inside the project folder, run:
-
-```bash
 npm install
 ```
 
-This will download all the libraries the app needs. It may take a minute or two. You'll see a progress bar. When it finishes you should see something like `added 350 packages`.
+### 2. Configure dbt Platform credentials
 
-> **If you see warnings**, that's normal. Warnings are fine. Only red **errors** are a problem.
-
-### Step 4: Set Up Your dbt Platform Credentials
-
-The app needs to connect to your dbt Platform account. You'll create a configuration file with your credentials.
-
-#### 4a. Create the config file
-
-There's a template file called `.env.local.example` in the project. Copy it:
+Copy the example config file:
 
 **Mac / Linux:**
 ```bash
 cp .env.local.example .env.local
 ```
 
-**Windows (Command Prompt):**
+**Windows:**
 ```bash
 copy .env.local.example .env.local
 ```
 
-Or you can simply create a new file called `.env.local` (note the dot at the beginning) in the project root folder and paste in this template:
-
-```
-DBT_SERVICE_TOKEN=your-token-here
-DBT_ACCOUNT_ID=your-account-id
-DBT_PROJECT_ID=your-project-id
-DBT_ENVIRONMENT_ID=your-environment-id
-DBT_DISCOVERY_API_URL=https://metadata.cloud.getdbt.com/graphql
-DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql
-```
-
-#### 4b. Fill in each value
-
-Open `.env.local` in any text editor and replace the placeholder values. Here's where to find each one:
-
----
-
-**`DBT_SERVICE_TOKEN`** — Your dbt Platform service token
-
-1. Log in to [dbt Platform](https://cloud.getdbt.com)
-2. Click the **gear icon** (⚙️) in the top right → **Account Settings**
-3. In the left sidebar, click **Service Tokens**
-4. Click **+ New Token**
-5. Give it a name (e.g., "Metric Explorer")
-6. Under permissions, select **"Metadata Only"** (or "Member" if Metadata Only is not available)
-7. Click **Save**
-8. **Copy the token** — it starts with `dbtc_` and looks like: `dbtc_abc123xyz456...`
-9. Paste it as the value: `DBT_SERVICE_TOKEN=dbtc_abc123xyz456...`
-
-> **Important:** You can only see the token once when you create it. If you lose it, you'll need to create a new one.
-
----
-
-**`DBT_ACCOUNT_ID`** — Your account ID number
-
-1. In dbt Platform, look at the URL in your browser's address bar
-2. It looks like: `https://cloud.getdbt.com/deploy/77338/projects/...`
-3. The number after `/deploy/` is your Account ID
-4. Example: `DBT_ACCOUNT_ID=77338`
-
----
-
-**`DBT_PROJECT_ID`** — Your project ID number
-
-1. In dbt Platform, navigate to your project
-2. Look at the URL: `https://cloud.getdbt.com/deploy/77338/projects/131392/...`
-3. The number after `/projects/` is your Project ID
-4. Example: `DBT_PROJECT_ID=131392`
-
----
-
-**`DBT_ENVIRONMENT_ID`** — Your production environment ID
-
-1. In dbt Platform, go to **Deploy** → **Environments**
-2. Click on your **Production** environment
-3. Look at the URL: `https://cloud.getdbt.com/deploy/77338/projects/131392/environments/105436`
-4. The last number is your Environment ID
-5. Example: `DBT_ENVIRONMENT_ID=105436`
-
-> **Important:** Use the **Production** environment, not a development or staging environment. The app needs metadata from a deployed project.
-
----
-
-**`DBT_DISCOVERY_API_URL`** and **`DBT_SEMANTIC_LAYER_API_URL`**
-
-For most dbt Platform users (multi-tenant), these are:
-
-```
-DBT_DISCOVERY_API_URL=https://metadata.cloud.getdbt.com/graphql
-DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql
-```
-
-You only need to change these if your organization uses a single-tenant or self-hosted dbt Platform instance. If you're not sure, the defaults above are almost certainly correct.
-
----
-
-#### 4c. Verify your file
-
-Your finished `.env.local` should look something like this (with your real values):
+Open `.env.local` in any text editor and fill in your values:
 
 ```
 DBT_SERVICE_TOKEN=dbtc_abc123xyz456def789...
@@ -177,33 +98,39 @@ DBT_DISCOVERY_API_URL=https://metadata.cloud.getdbt.com/graphql
 DBT_SEMANTIC_LAYER_API_URL=https://semantic-layer.cloud.getdbt.com/api/graphql
 ```
 
-> **Security note:** The `.env.local` file is listed in `.gitignore`, which means it will **not** be committed to git. Your token stays on your machine only.
-
-### Step 5: Start the App
-
-From the project folder, run:
+### 3. Start the app
 
 ```bash
 npm run dev
 ```
 
-You should see output like:
+Open **http://localhost:3000** in your browser.
 
-```
-▲ Next.js 16.x.x (Turbopack)
-- Local:    http://localhost:3000
-✓ Ready in ~1s
-```
+---
 
-Now open your browser and go to:
+## Where to Find Your Credentials
 
-**[http://localhost:3000](http://localhost:3000)**
+**`DBT_SERVICE_TOKEN`** — Your dbt Platform service token
 
-You should see the landing page with three cards: **Metric Explorer**, **Query Lab**, and **How It Works**.
+1. Log in to [dbt Platform](https://cloud.getdbt.com)
+2. Click the **gear icon** in the top right → **Account Settings**
+3. In the left sidebar, click **Service Tokens**
+4. Click **+ New Token**, name it (e.g., "Metric Explorer"), select **"Metadata Only"** permissions
+5. Click **Save** and copy the token (starts with `dbtc_`)
 
-> **To stop the app**, go back to your terminal and press **Ctrl+C**.
->
-> **To restart it**, just run `npm run dev` again.
+> You can only see the token once when you create it. If you lose it, create a new one.
+
+**`DBT_ACCOUNT_ID`** — From the URL: `https://cloud.getdbt.com/deploy/`**`77338`**`/projects/...`
+
+**`DBT_PROJECT_ID`** — From the URL: `https://cloud.getdbt.com/deploy/77338/projects/`**`131392`**`/...`
+
+**`DBT_ENVIRONMENT_ID`** — Go to **Deploy** → **Environments** → click your **Production** environment. From the URL: `.../environments/`**`105436`**
+
+> Use the **Production** environment, not development or staging. The app needs metadata from a deployed project.
+
+**`DBT_DISCOVERY_API_URL`** and **`DBT_SEMANTIC_LAYER_API_URL`** — The defaults work for most users (multi-tenant dbt Platform). Only change these if your organization uses single-tenant or self-hosted instances.
+
+> **Security note:** `.env.local` is in `.gitignore` and will **not** be committed to git. Your token stays on your machine only.
 
 ---
 
